@@ -1,7 +1,6 @@
-use std::time::Duration;
+use std::{future::Future, pin::Pin, time::Duration};
 use tokio::time::sleep;
 
-#[tokio::main]
 async fn library_task(id: usize) {
     let mut counter = 0;
     for _i in 0..5 {
@@ -16,7 +15,7 @@ async fn library_task(id: usize) {
 }
 
 #[no_mangle]
-fn library_task_future(id: usize) {
+fn library_task_future(id: usize) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
     println!("Started async code from library");
-    library_task(id)
+    Box::pin(library_task(id))
 }

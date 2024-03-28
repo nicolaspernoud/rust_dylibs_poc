@@ -1,41 +1,51 @@
 use libloading::{library_filename, Library, Symbol};
-use tokio::task::JoinHandle;
+use std::future::Future;
+use std::pin::Pin;
 use tokio::time::{sleep, Duration};
 
-async fn local_task(id: usize) {
-    let mut counter = 0;
-
-    for _i in 0..5 {
-        sleep(Duration::from_secs(1)).await;
-        counter += 1;
-        println!("Task {}: Counter: {}", id, counter);
-    }
-}
-
-fn spawn_local_task(id: usize) -> JoinHandle<()> {
-    tokio::spawn(local_task(id))
-}
-
-async fn call_dynamic_tokio(id: usize) {
+async fn call_dynamic_tokio(id: usize) -> tokio::task::JoinHandle<()> {
     unsafe {
         let lib = Library::new(format!(
             "./{}",
             library_filename("dynamic_library").into_string().unwrap()
         ))
         .expect("could not load library");
-        let future: Symbol<fn(id: usize)> = lib
+
+        let future: Symbol<fn(id: usize) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>>> = lib
             .get(b"library_task_future")
             .expect("could not load function from library");
-        future(id);
+        tokio::spawn(future(id))
     }
 }
 
 #[tokio::main]
 async fn main() {
     // Spawn two tasks
-    let task1 = spawn_local_task(1);
-    call_dynamic_tokio(2).await;
+    let _task1 = call_local_tokio(1);
+    let _task2 = call_dynamic_tokio(2);
+    _task1.await.unwrap();
+    _task2.await;
+    // If it worked, we could select to run the tasks in parallel, but that is not yet the point...
+}
 
-    // Wait for main task to complete
-    task1.await.expect("main program terminated with an error");
+fn call_local_tokio(id: usize) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(local_task_future(id))
+}
+
+async fn local_task(id: usize) {
+    let mut counter = 0;
+    for _i in 0..5 {
+        // Sleep for one second
+        sleep(Duration::from_secs(1)).await;
+
+        // Increment counter
+        counter += 1;
+
+        println!("Locally: Task {}: Counter: {}", id, counter);
+    }
+}
+
+fn local_task_future(id: usize) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
+    println!("Started async code locally");
+    Box::pin(local_task(id))
 }
