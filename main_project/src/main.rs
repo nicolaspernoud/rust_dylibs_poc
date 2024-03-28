@@ -1,7 +1,10 @@
 use libloading::{library_filename, Library, Symbol};
 use std::future::Future;
 use std::pin::Pin;
-use tokio::time::{sleep, Duration};
+use tokio::{
+    runtime::Handle,
+    time::{sleep, Duration},
+};
 
 async fn call_dynamic_tokio(id: usize) -> tokio::task::JoinHandle<()> {
     unsafe {
@@ -11,10 +14,11 @@ async fn call_dynamic_tokio(id: usize) -> tokio::task::JoinHandle<()> {
         ))
         .expect("could not load library");
 
-        let future: Symbol<fn(id: usize) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>>> = lib
+        let future: Symbol<fn(id: usize, handle: Handle) -> tokio::task::JoinHandle<()>> = lib
             .get(b"library_task_future")
             .expect("could not load function from library");
-        tokio::spawn(future(id))
+        let handle = Handle::current();
+        future(id, handle)
     }
 }
 
