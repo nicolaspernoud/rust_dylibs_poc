@@ -3,7 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 use tokio::time::{sleep, Duration};
 
-async fn call_dynamic_tokio(id: usize) -> tokio::task::JoinHandle<()> {
+async fn spawn_dynamic_task(id: usize) -> tokio::task::JoinHandle<()> {
     tokio::spawn({
         unsafe {
             let lib = Library::new(format!(
@@ -23,16 +23,16 @@ async fn call_dynamic_tokio(id: usize) -> tokio::task::JoinHandle<()> {
 async fn main() {
     // Spawn two tasks
     tokio::select! {
-        _ = call_local_tokio(1) => {
-            println!("call_local_tokio() completed first")
+        _ = spawn_local_task(1) => {
+            println!("spawn_local_task() completed first")
         }
-        _ = call_dynamic_tokio(2) => {
-            println!("call_dynamic_tokio() completed first")
+        _ = spawn_dynamic_task(2) => {
+            println!("spawn_dynamic_task() completed first")
         }
     };
 }
 
-fn call_local_tokio(id: usize) -> tokio::task::JoinHandle<()> {
+fn spawn_local_task(id: usize) -> tokio::task::JoinHandle<()> {
     tokio::spawn(local_task_future(id))
 }
 
