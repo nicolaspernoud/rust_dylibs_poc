@@ -4,28 +4,32 @@ use std::pin::Pin;
 use tokio::time::{sleep, Duration};
 
 async fn call_dynamic_tokio(id: usize) -> tokio::task::JoinHandle<()> {
-    unsafe {
-        let lib = Library::new(format!(
-            "./{}",
-            library_filename("dynamic_library").into_string().unwrap()
-        ))
-        .expect("could not load library");
-
-        let future: Symbol<fn(id: usize) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>>> = lib
-            .get(b"library_task_future")
-            .expect("could not load function from library");
-        tokio::spawn(future(id))
-    }
+    tokio::spawn({
+        unsafe {
+            let lib = Library::new(format!(
+                "./{}",
+                library_filename("dynamic_library").into_string().unwrap()
+            ))
+            .expect("could not load library");
+            let future: Symbol<fn(id: usize) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>>> =
+                lib.get(b"library_task_future")
+                    .expect("could not load function from library");
+            future(id)
+        }
+    })
 }
 
 #[tokio::main]
 async fn main() {
     // Spawn two tasks
-    let _task1 = call_local_tokio(1);
-    let _task2 = call_dynamic_tokio(2);
-    _task1.await.unwrap();
-    _task2.await;
-    // If it worked, we could select to run the tasks in parallel, but that is not yet the point...
+    tokio::select! {
+        _ = call_local_tokio(1) => {
+            println!("call_local_tokio() completed first")
+        }
+        _ = call_dynamic_tokio(2) => {
+            println!("call_dynamic_tokio() completed first")
+        }
+    };
 }
 
 fn call_local_tokio(id: usize) -> tokio::task::JoinHandle<()> {
