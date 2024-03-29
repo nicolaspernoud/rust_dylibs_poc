@@ -16,7 +16,7 @@ fn spawn_local_task(id: usize) -> JoinHandle<()> {
     tokio::spawn(local_task(id))
 }
 
-fn spawn_remote_task(id: usize) -> JoinHandle<()> {
+fn spawn_dynamic_task(id: usize) -> JoinHandle<()> {
     tokio::spawn(async move {
         unsafe {
             let lib = Library::new(format!(
@@ -35,9 +35,12 @@ fn spawn_remote_task(id: usize) -> JoinHandle<()> {
 #[tokio::main]
 async fn main() {
     // Spawn two tasks
-    let task1 = spawn_local_task(1);
-    let _task2 = spawn_remote_task(2);
-
-    // Wait for main task to complete
-    task1.await.expect("main program terminated with an error");
+    tokio::select! {
+        _ = spawn_local_task(1) => {
+            println!("spawn_local_task() completed first")
+        }
+        _ = spawn_dynamic_task(2) => {
+            println!("spawn_dynamic_task() completed first")
+        }
+    };
 }
