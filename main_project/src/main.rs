@@ -16,25 +16,27 @@ fn spawn_local_task(id: usize) -> JoinHandle<()> {
     tokio::spawn(local_task(id))
 }
 
-async fn call_dynamic_tokio(id: usize) {
-    unsafe {
-        let lib = Library::new(format!(
-            "./{}",
-            library_filename("dynamic_library").into_string().unwrap()
-        ))
-        .expect("could not load library");
-        let future: Symbol<fn(id: usize)> = lib
-            .get(b"library_task_future")
-            .expect("could not load function from library");
-        future(id);
-    }
+fn spawn_remote_task(id: usize) -> JoinHandle<()> {
+    tokio::spawn(async move {
+        unsafe {
+            let lib = Library::new(format!(
+                "./{}",
+                library_filename("dynamic_library").into_string().unwrap()
+            ))
+            .expect("could not load library");
+            let future: Symbol<fn(id: usize)> = lib
+                .get(b"library_task_future")
+                .expect("could not load function from library");
+            future(id)
+        }
+    })
 }
 
 #[tokio::main]
 async fn main() {
     // Spawn two tasks
     let task1 = spawn_local_task(1);
-    call_dynamic_tokio(2).await;
+    let _task2 = spawn_remote_task(2);
 
     // Wait for main task to complete
     task1.await.expect("main program terminated with an error");
